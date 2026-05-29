@@ -1,0 +1,47 @@
+_format_version: "3.0"
+
+# API Gateway / Orquestador (patron de microservicios distinto a la descomposicion
+# por capacidades/subdominios). Punto unico de entrada que enruta hacia los 3
+# microservicios. Es tambien el punto donde, en produccion, se valida el JWT de Auth0.
+
+services:
+  - name: reportes-service          # LATENCIA: lectura precalculada (FastAPI + Mongo)
+    url: http://ms-reportes:8080
+    routes:
+      - name: reportes
+        paths: ["/reportes"]
+        strip_path: false
+      - name: health
+        paths: ["/health"]
+        strip_path: false
+
+  - name: autenticacion-service     # Manejador de Autenticacion (registro de empresas/usuarios)
+    url: http://ms-autenticacion:8080
+    routes:
+      - name: empresas
+        paths: ["/empresas"]
+        strip_path: false
+
+  - name: alertas-service           # Gestor de Alertas (ingesta + precalculo + anti-patron)
+    url: http://ms-alertas:8080
+    routes:
+      - name: oncall
+        paths: ["/reporte-oncall"]
+        strip_path: false
+      - name: consolidar
+        paths: ["/consolidar"]
+        strip_path: false
+
+# --- Autenticacion en el gateway (PRODUCCION con Auth0) ---
+# Para validar el JWT de Auth0 (RS256) directamente en Kong, habilite el plugin
+# `jwt` sobre la ruta `reportes` y registre un consumer con la clave publica de
+# Auth0 (RS256). En el experimento local la autenticacion/autorizacion se realiza
+# en ms-reportes (auth.py) para poder ACTIVARLA/DESACTIVARLA con la variable
+# AUTH_ENABLED durante la prueba de trade-off latencia con/sin seguridad.
+#
+# plugins:
+#   - name: jwt
+#     route: reportes
+#     config:
+#       claims_to_verify: ["exp"]
+#       key_claim_name: iss

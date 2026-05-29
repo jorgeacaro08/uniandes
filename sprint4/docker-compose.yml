@@ -1,0 +1,93 @@
+# Orquestacion local del experimento (valida el codigo antes de AWS).
+# 2 tipos de BD: PostgreSQL (auth + alertas, Database-per-Service) y MongoDB (consolidados).
+# Gateway Kong (DB-less) -> 3 microservicios.
+name: bite-sprint4
+
+services:
+  postgres-alertas:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: alertas_db
+      POSTGRES_USER: monitoring_user
+      POSTGRES_PASSWORD: isis2503
+    volumes: ["pg_alertas:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitoring_user -d alertas_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-auth:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: monitoring_user
+      POSTGRES_PASSWORD: isis2503
+    volumes: ["pg_auth:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitoring_user -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: monitoring_user
+      MONGO_INITDB_ROOT_PASSWORD: isis2503
+    volumes: ["mongo_data:/data/db"]
+
+  ms-alertas:
+    build: ./ms-alertas
+    environment:
+      ALERTAS_DB_HOST: postgres-alertas
+      ALERTAS_DB_NAME: alertas_db
+      ALERTAS_DB_USER: monitoring_user
+      ALERTAS_DB_PASSWORD: isis2503
+      MONGO_URI: "mongodb://monitoring_user:isis2503@mongo:27017/?authSource=admin"
+      MONGO_DB: reportes_db
+      MONGO_COLLECTION: reportes_consolidados
+    depends_on:
+      postgres-alertas: {condition: service_healthy}
+      mongo: {condition: service_started}
+    ports: ["8083:8080"]
+
+  ms-autenticacion:
+    build: ./ms-autenticacion
+    environment:
+      AUTH_DB_HOST: postgres-auth
+      AUTH_DB_NAME: auth_db
+      AUTH_DB_USER: monitoring_user
+      AUTH_DB_PASSWORD: isis2503
+    depends_on:
+      postgres-auth: {condition: service_healthy}
+    ports: ["8082:8080"]
+
+  ms-reportes:
+    build: ./ms-reportes
+    environment:
+      MONGO_URI: "mongodb://monitoring_user:isis2503@mongo:27017/?authSource=admin"
+      MONGO_DB: reportes_db
+      MONGO_COLLECTION: reportes_consolidados
+      AUTH_ENABLED: "true"        # cambie a "false" para la corrida SIN seguridad (trade-off)
+      AUTH_PROVIDER: local        # "auth0" en produccion
+      AUTH_SECRET: dev-secret     # secreto HS256 del modo local (use el mismo en gen_token.py)
+    depends_on:
+      mongo: {condition: service_started}
+    ports: ["8081:8080"]
+
+  kong:
+    image: kong:3.7
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yaml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    volumes: ["./gateway/kong.yaml:/kong/kong.yaml:ro"]
+    depends_on: [ms-reportes, ms-autenticacion, ms-alertas]
+    ports: ["8000:8000", "8001:8001"]
+
+volumes:
+  pg_alertas: {}
+  pg_auth: {}
+  mongo_data: {}
