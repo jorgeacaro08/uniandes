@@ -28,7 +28,7 @@ cd uniandes
 git add sprint4 && git commit -m "Sprint 4: microservicios"
 git push origin main
 ```
-Repo: https://github.com/Diegomefe/uniandes (carpeta `sprint4/`).
+Repo: https://github.com/jorgeacaro08/uniandes (carpeta `sprint4/`).
 
 ## Paso 1 — Llave, Security Groups
 1. **Key pair:** EC2 → Network & Security → Key Pairs → Create → `bite-key` (formato `.pem`). Guárdala.
@@ -74,7 +74,7 @@ ssh -i bite-key.pem ec2-user@<PUBLIC_IPv4>
 sudo dnf update -y && sudo dnf install -y docker git
 sudo systemctl enable --now docker
 sudo usermod -aG docker ec2-user && newgrp docker
-git clone https://github.com/Diegomefe/uniandes.git && cd uniandes/sprint4
+git clone https://github.com/jorgeacaro08/uniandes.git && cd uniandes/sprint4
 ```
 
 ## Paso 3 — EC2 "datos" (las 2 BD)
@@ -95,7 +95,7 @@ Anota la **Private IP** de esta instancia como `DATOS_IP`.
 ```bash
 cd uniandes/sprint4/ms-autenticacion && docker build -t ms-autenticacion .
 docker run -d --name ms-autenticacion -p 8080:8080 \
-  -e AUTH_DB_HOST=<DATOS_IP> -e AUTH_DB_PORT=5433 -e AUTH_DB_NAME=auth_db \
+  -e AUTH_DB_HOST=172.31.2.238 -e AUTH_DB_PORT=5433 -e AUTH_DB_NAME=auth_db \
   -e AUTH_DB_USER=monitoring_user -e AUTH_DB_PASSWORD=isis2503 ms-autenticacion
 docker exec ms-autenticacion python manage.py seed_empresas --empresas 500
 ```
@@ -106,7 +106,7 @@ cd uniandes/sprint4/ms-alertas && docker build -t ms-alertas .
 docker run -d --name ms-alertas -p 8080:8080 \
   -e ALERTAS_DB_HOST=<DATOS_IP> -e ALERTAS_DB_PORT=5432 -e ALERTAS_DB_NAME=alertas_db \
   -e ALERTAS_DB_USER=monitoring_user -e ALERTAS_DB_PASSWORD=isis2503 \
-  -e MONGO_URI="mongodb://monitoring_user:isis2503@<DATOS_IP>:27017/?authSource=admin" \
+  -e MONGO_URI="mongodb://monitoring_user:isis2503@172.31.2.238:27017/?authSource=admin" \
   -e MONGO_DB=reportes_db -e MONGO_COLLECTION=reportes_consolidados ms-alertas
 docker exec ms-alertas python manage.py seed_crudos --empresas 50 --meses 24
 docker exec ms-alertas python manage.py consolidar
@@ -116,7 +116,7 @@ docker exec ms-alertas python manage.py consolidar
 ```bash
 cd uniandes/sprint4/ms-reportes && docker build -t ms-reportes .
 docker run -d --name ms-reportes -p 8080:8080 \
-  -e MONGO_URI="mongodb://monitoring_user:isis2503@<DATOS_IP>:27017/?authSource=admin" \
+  -e MONGO_URI="mongodb://monitoring_user:isis2503@172.31.2.238:27017/?authSource=admin" \
   -e MONGO_DB=reportes_db -e MONGO_COLLECTION=reportes_consolidados \
   -e AUTH_ENABLED=true -e AUTH_PROVIDER=local -e AUTH_SECRET=dev-secret ms-reportes
 ```
@@ -142,13 +142,13 @@ Edita `gateway/kong.yaml` reemplazando los hosts por las IP privadas:
 ```yaml
 services:
   - name: reportes-service
-    url: http://<IP_PRIVADA_MS_REPORTES>:8080
+    url: http://172.31.6.74:8080
     routes: [{ name: reportes, paths: ["/reportes"], strip_path: false }, { name: health, paths: ["/health"], strip_path: false }]
   - name: autenticacion-service
-    url: http://<IP_PRIVADA_MS_AUTENTICACION>:8080
+    url: http://172.31.6.52:8080
     routes: [{ name: empresas, paths: ["/empresas"], strip_path: false }]
   - name: alertas-service
-    url: http://<IP_PRIVADA_MS_ALERTAS>:8080
+    url: http://172.31.5.114:8080
     routes: [{ name: oncall, paths: ["/reporte-oncall"], strip_path: false }, { name: consolidar, paths: ["/consolidar"], strip_path: false }]
 ```
 Arranca Kong:

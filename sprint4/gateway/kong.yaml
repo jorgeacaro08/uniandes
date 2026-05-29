@@ -6,7 +6,7 @@ _format_version: "3.0"
 
 services:
   - name: reportes-service          # LATENCIA: lectura precalculada (FastAPI + Mongo)
-    url: http://ms-reportes:8080
+    url: http://172.31.6.74:8080
     routes:
       - name: reportes
         paths: ["/reportes"]
@@ -16,14 +16,14 @@ services:
         strip_path: false
 
   - name: autenticacion-service     # Manejador de Autenticacion (registro de empresas/usuarios)
-    url: http://ms-autenticacion:8080
+    url: http://172.31.6.52:8080
     routes:
       - name: empresas
         paths: ["/empresas"]
         strip_path: false
 
   - name: alertas-service           # Gestor de Alertas (ingesta + precalculo + anti-patron)
-    url: http://ms-alertas:8080
+    url: http://172.31.5.114:8080
     routes:
       - name: oncall
         paths: ["/reporte-oncall"]
